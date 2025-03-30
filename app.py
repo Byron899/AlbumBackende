@@ -1,65 +1,76 @@
+
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import uuid
 import json
 import os
 
 app = Flask(__name__)
 CORS(app)
 
-STORAGE_FILE = "albums.json"
+DATA_FILE = "albums.json"
 
-def load_albums():
-    if os.path.exists(STORAGE_FILE):
-        with open(STORAGE_FILE, "r") as f:
-            return json.load(f)
-    return []
+def load_data():
+    if not os.path.exists(DATA_FILE):
+        return []
+    with open(DATA_FILE, "r") as f:
+        return json.load(f)
 
-def save_albums(albums):
-    with open(STORAGE_FILE, "w") as f:
-        json.dump(albums, f, indent=2)
+def save_data(data):
+    with open(DATA_FILE, "w") as f:
+        json.dump(data, f, indent=2)
 
-@app.route("/albums", methods=["GET"])
-def get_albums():
-    sort_key = request.args.get("sort", "average")
-    sort_order = request.args.get("order", "desc")
-    albums = load_albums()
-    for album in albums:
-        ratings = [float(song["rating"]) for song in album["songs"] if song.get("rating")]
-        album["total_score"] = sum(ratings)
-        album["max_score"] = len(ratings) * 10
-        album["average"] = round(album["total_score"] / len(ratings), 2) if ratings else 0
-    albums.sort(key=lambda x: x.get(sort_key, 0), reverse=(sort_order == "desc"))
-    for i, album in enumerate(albums, 1):
-        album["rank"] = i
-    return jsonify(albums)
+@app.route("/albums", methods=["GET", "POST"])
+def albums():
+    if request.method == "GET":
+        albums = load_data()
+        sort_key = request.args.get("sort", "average")
+        order = request.args.get("order", "desc")
+        albums.sort(key=lambda x: x.get(sort_key, 0), reverse=(order == "desc"))
+        for i, a in enumerate(albums):
+            a["rank"] = i + 1
+        return jsonify(albums)
+    else:
+        albums = load_data()
+        data = request.json
+        total_score = sum(float(song["rating"]) for song in data["songs"])
+        max_score = len(data["songs"]) * 10
+        average = round(total_score / len(data["songs"]), 2)
+        new_album = {
+            "id": len(albums) + 1,
+            **data,
+            "total_score": total_score,
+            "max_score": max_score,
+            "average": average
+        }
+        albums.append(new_album)
+        save_data(albums)
+        return jsonify(new_album), 201
 
-@app.route("/albums", methods=["POST"])
-def add_album():
-    album = request.json
-    album["id"] = str(uuid.uuid4())
-    albums = load_albums()
-    albums.append(album)
-    save_albums(albums)
-    return jsonify({"message": "Album added", "id": album["id"]}), 201
+@app.route("/albums/<int:album_id>", methods=["DELETE", "PUT"])
+def album_ops(album_id):
+    albums = load_data()
+    album = next((a for a in albums if a["id"] == album_id), None)
+    if not album:
+        return jsonify({"error": "Album not found"}), 404
 
-@app.route("/albums/<album_id>", methods=["PUT"])
-def update_album(album_id):
-    update = request.json
-    albums = load_albums()
-    for i, album in enumerate(albums):
-        if album["id"] == album_id:
-            albums[i] = {**album, **update, "id": album_id}
-            break
-    save_albums(albums)
-    return jsonify({"message": "Album updated"})
+    if request.method == "DELETE":
+        albums = [a for a in albums if a["id"] != album_id]
+        save_data(albums)
+        return jsonify({"success": True})
 
-@app.route("/albums/<album_id>", methods=["DELETE"])
-def delete_album(album_id):
-    albums = load_albums()
-    albums = [a for a in albums if a["id"] != album_id]
-    save_albums(albums)
-    return jsonify({"message": "Album deleted"})
+    if request.method == "PUT":
+        data = request.json
+        album.update(data)
+        total_score = sum(float(song["rating"]) for song in data["songs"])
+        max_score = len(data["songs"]) * 10
+        average = round(total_score / len(data["songs"]), 2)
+        album.update({
+            "total_score": total_score,
+            "max_score": max_score,
+            "average": average,
+        })
+        save_data(albums)
+        return jsonify(album)
 
 if __name__ == "__main__":
     app.run(debug=True)
