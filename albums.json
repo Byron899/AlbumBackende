@@ -1,1 +1,15 @@
-[]
+[
+  {
+    "id": "sample1",
+    "title": "Test Album",
+    "artist": "Sample Artist",
+    "type": "Album",
+    "songs": [
+      {
+        "title": "Sample Song",
+        "rating": 8,
+        "note": "Nice"
+      }
+    ]
+  }
+]
