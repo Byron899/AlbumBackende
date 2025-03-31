@@ -1,14 +1,14 @@
 [
   {
-    "id": "sample1",
+    "id": 1,
     "title": "Test Album",
     "artist": "Sample Artist",
     "type": "Album",
     "songs": [
       {
         "title": "Sample Song",
-        "rating": 8,
-        "note": "Nice"
+        "rating": "9",
+        "note": "Test note"
       }
     ]
   }

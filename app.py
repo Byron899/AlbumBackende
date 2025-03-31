@@ -1,45 +1,52 @@
-
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import json
 import os
-from uuid import uuid4
 
 app = Flask(__name__)
 CORS(app)
 
-DB_FILE = "albums.json"
+DATA_FILE = 'albums.json'
 
-def load_data():
-    if os.path.exists(DB_FILE):
-        with open(DB_FILE) as f:
+def load_albums():
+    if os.path.exists(DATA_FILE):
+        with open(DATA_FILE, 'r') as f:
             return json.load(f)
     return []
 
-def save_data(data):
-    with open(DB_FILE, "w") as f:
-        json.dump(data, f, indent=2)
+def save_albums(albums):
+    with open(DATA_FILE, 'w') as f:
+        json.dump(albums, f, indent=2)
 
 @app.route("/albums", methods=["GET"])
 def get_albums():
-    albums = load_data()
-    return jsonify(albums)
+    return jsonify(load_albums())
 
 @app.route("/albums", methods=["POST"])
 def add_album():
-    album = request.json
-    album["id"] = str(uuid4())
-    albums = load_data()
-    albums.append(album)
-    save_data(albums)
-    return jsonify({"message": "Album added", "id": album["id"]}), 201
+    albums = load_albums()
+    new_album = request.json
+    new_album["id"] = max([a["id"] for a in albums], default=0) + 1
+    albums.append(new_album)
+    save_albums(albums)
+    return jsonify({"success": True}), 201
 
-@app.route("/albums/<album_id>", methods=["DELETE"])
+@app.route("/albums/<int:album_id>", methods=["PUT"])
+def update_album(album_id):
+    albums = load_albums()
+    for i, album in enumerate(albums):
+        if album["id"] == album_id:
+            albums[i] = {**request.json, "id": album_id}
+            save_albums(albums)
+            return jsonify({"success": True})
+    return jsonify({"error": "Album not found"}), 404
+
+@app.route("/albums/<int:album_id>", methods=["DELETE"])
 def delete_album(album_id):
-    albums = load_data()
+    albums = load_albums()
     albums = [a for a in albums if a["id"] != album_id]
-    save_data(albums)
-    return jsonify({"message": "Album deleted"})
+    save_albums(albums)
+    return jsonify({"success": True})
 
 if __name__ == "__main__":
     app.run(debug=True)
